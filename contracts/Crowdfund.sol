@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
+
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 
 contract CrowdfundingToken is ERC20 {
     address public campaignCreator;
@@ -10,7 +10,7 @@ contract CrowdfundingToken is ERC20 {
     uint256 public totalPledged;
     bool public campaignEnded;
 
-    IERC721Enumerable public tokenContract;
+    IERC20 public tokenContract; // Use IERC20 for ERC20 tokens
 
     mapping(address => uint256) public pledges;
 
@@ -25,7 +25,7 @@ contract CrowdfundingToken is ERC20 {
         address _tokenContract
     ) ERC20(name, symbol) {
         _mint(msg.sender, initialSupply);
-        tokenContract = IERC721Enumerable(_tokenContract);
+        tokenContract = IERC20(_tokenContract);
     }
 
     function createCampaign(uint256 _durationInDays, uint256 _goal) external {
@@ -69,7 +69,7 @@ contract CrowdfundingToken is ERC20 {
     function refundPledges() internal {
         uint256 tokenBalance = tokenContract.balanceOf(address(this));
         for (uint256 i = 0; i < tokenBalance; i++) {
-            address account = tokenContract.tokenOfOwnerByIndex(address(this), i);
+            address account = msg.sender;
             uint256 pledgedAmount = pledges[account];
             if (pledgedAmount > 0) {
                 transfer(account, pledgedAmount);
