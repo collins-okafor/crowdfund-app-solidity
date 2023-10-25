@@ -1,7 +1,7 @@
 const { ethers } = require("ethers"); // Import ethers module
 
 async function main() {
-  const deployerAddress = "0xdC9716C5570AAA951d8FD3Bb60711A7395800A8B";
+  const deployerAddress = "YOUR_DEPLOYER_ADDRESS";
 
   const tokenName = "MyCrowdToken";
   const tokenSymbol = "CT";
