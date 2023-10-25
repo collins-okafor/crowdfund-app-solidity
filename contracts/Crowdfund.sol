@@ -1,63 +1,79 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 
-import {IERC20} from "../Interfaces/IERC20.sol";
+contract CrowdfundingToken is ERC20 {
+    address public campaignCreator;
+    uint256 public campaignEndTime;
+    uint256 public campaignGoal;
+    uint256 public totalPledged;
+    bool public campaignEnded;
 
-contract CrowdFund {
-    event Launch(
-        uint id,
-        address indexed creator,
-        uint goal,
-        uint32 startAt,
-        uint32 endAt
-    );
+    IERC721Enumerable public tokenContract;
 
-    event Pledge(uint indexed id, address indexed caller, uint amount);
-    event Claim(uint id);
-    event Cancel(uint id);
+    mapping(address => uint256) public pledges;
 
-    struct Campaign {
-        address creator;
-        uint goal;
-        uint pledged;
-        uint32 startAt;
-        uint32 endAt;
-        bool claimed;
+    event CampaignCreated(address creator, uint256 goal, uint256 endTime);
+    event Pledged(address backer, uint256 amount);
+    event CampaignEnded(bool goalReached);
+
+    constructor(
+        string memory name,
+        string memory symbol,
+        uint256 initialSupply,
+        address _tokenContract
+    ) ERC20(name, symbol) {
+        _mint(msg.sender, initialSupply);
+        tokenContract = IERC721Enumerable(_tokenContract);
     }
 
-    IERC20 public immutable token;
-    uint public count;
-    mapping(address => Campaign) public campaigns;
-    mapping(uint => mapping(address => uint)) public pledgedAmount;
-
-    constructor(address _token) {
-        token = IERC20(_token);
+    function createCampaign(uint256 _durationInDays, uint256 _goal) external {
+        require(balanceOf(msg.sender) >= _goal, "Insufficient balance to create a campaign");
+        require(!campaignEnded, "A campaign is already active");
+        campaignCreator = msg.sender;
+        campaignEndTime = block.timestamp + (_durationInDays * 1 days);
+        campaignGoal = _goal;
+        campaignEnded = false;
+        emit CampaignCreated(campaignCreator, campaignGoal, campaignEndTime);
     }
 
-    function launch(uint _goal, uint32 _startAt, uint32 _endAt) external {
-        require(_startAt >= block.timestamp, "start at < now");
-        require(_endAt >= _startAt, "end at < start at");
-        require(_endAt <= block.timestamp + 30 days, "end at > max duration");
+    function pledge(uint256 amount) external {
+        require(!campaignEnded, "Campaign has ended");
+        require(block.timestamp < campaignEndTime, "Campaign has ended");
+        require(balanceOf(msg.sender) >= amount, "Insufficient balance to pledge");
+        require(allowance(msg.sender, address(this)) >= amount, "You must approve the contract to spend tokens");
 
-        count += 1;
-        campaigns[count] = Campaign({
-            creator: msg.sender,
-            goal: _goal,
-            pledged: 0,
-            startAt: _startAt,
-            endAt: _endAt,
-            claimed: false
-        });
-
-        emit Launch(count, msg.sender, _goal, _startAt, _endAt);
+        transferFrom(msg.sender, address(this), amount);
+        pledges[msg.sender] += amount;
+        totalPledged += amount;
+        emit Pledged(msg.sender, amount);
     }
 
-    function cancel(address _user) external {
-        Campaign memory campaign = campaigns[_user];
-        require(campaign.creator == _user, "not creator");
-        require(block.timestamp < campaign.startAt, "started");
+    function endCampaign() external {
+        require(msg.sender == campaignCreator, "Only the campaign creator can end the campaign");
+        require(block.timestamp >= campaignEndTime, "Campaign is still active");
+        require(!campaignEnded, "Campaign has already ended");
 
-        delete campaigns[_user];
-        emit Cancel(_user);
+        campaignEnded = true;
+
+        if (totalPledged >= campaignGoal) {
+            transfer(campaignCreator, totalPledged);
+        } else {
+            refundPledges();
+        }
+
+        emit CampaignEnded(totalPledged >= campaignGoal);
+    }
+
+    function refundPledges() internal {
+        uint256 tokenBalance = tokenContract.balanceOf(address(this));
+        for (uint256 i = 0; i < tokenBalance; i++) {
+            address account = tokenContract.tokenOfOwnerByIndex(address(this), i);
+            uint256 pledgedAmount = pledges[account];
+            if (pledgedAmount > 0) {
+                transfer(account, pledgedAmount);
+            }
+        }
     }
 }
