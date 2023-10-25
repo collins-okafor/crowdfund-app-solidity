@@ -1,26 +1,24 @@
-
-const { ethers, upgrades } = require("hardhat");
+const { ethers } = require("ethers"); // Import ethers module
 
 async function main() {
-  const [deployer] = await ethers.getSigners();
-
-  console.log(
-    "Deploying CrowdfundingToken with the account:",
-    deployer.address
-  );
+  const deployerAddress = "0xdC9716C5570AAA951d8FD3Bb60711A7395800A8B";
 
   const tokenName = "MyCrowdToken";
   const tokenSymbol = "CT";
-  const initialSupply = ethers.utils.parseEther("1000000"); 
-  const tokenContract = await upgrades.deployProxy(
-    await ethers.getContractFactory("CrowdfundingToken"),
-    [tokenName, tokenSymbol, initialSupply, deployer.address],
-    { initializer: "initialize" }
+  const initialSupply = ethers.utils.parseEther("1000000");
+
+  const CrowdToken = await ethers.getContractFactory("CrowdfundingToken");
+
+  const CrowdToken_ = await CrowdToken.deploy(
+    tokenName,
+    tokenSymbol,
+    initialSupply,
+    deployerAddress
   );
 
-  await tokenContract.deployed();
+  await CrowdToken_.deployed();
 
-  console.log("CrowdfundingToken deployed to:", tokenContract.address);
+  console.log("Contract address:", CrowdToken_.address);
 }
 
 main()
